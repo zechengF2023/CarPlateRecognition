@@ -1,0 +1,5 @@
+names:
+- licence
+nc: 1
+train: Car-plate-location-1/train/images
+val: Car-plate-location-1/valid/images

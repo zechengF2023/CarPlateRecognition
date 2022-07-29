@@ -25,6 +25,7 @@ Usage - formats:
 """
 
 import argparse
+from logging import Logger
 import os
 import sys
 from pathlib import Path
@@ -44,6 +45,9 @@ from utils.general import (LOGGER, check_file, check_img_size, check_imshow, che
                            increment_path, non_max_suppression, print_args, scale_coords, strip_optimizer, xyxy2xywh)
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, time_sync
+from PIL import Image, ImageDraw, ImageFont
+import pytesseract
+import cv2
 
 
 @torch.no_grad()
@@ -165,10 +169,25 @@ def run(
 
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
-                        label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
+
+                        crop=save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True, save=False)
+                        # cropped_img=Image.fromarray(cv2.medianBlur(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY),5))
+                        cropped_img=Image.fromarray(cv2.adaptiveThreshold(cv2.cvtColor(crop[40:125,60:150], cv2.COLOR_BGR2GRAY),255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 2))
+
+                        raw_text=pytesseract.image_to_string(cropped_img, config=("-l eng --oem 1 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"))
+                        LOGGER.info("raw text:"+raw_text)
+                        plate_text=""
+                        for chr in raw_text:
+                            if(chr.isalnum()):plate_text+=chr
+                        LOGGER.info("plate text: "+plate_text)
+                        # modify box label here!!!
+                        label = None if hide_labels else (names[c]+plate_text if hide_conf else f'{names[c]} {conf:.2f}'+plate_text)
+                        
+                        # if(label !=None):label+=plate_text
                         annotator.box_label(xyxy, label, color=colors(c, True))
                     if save_crop:
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
+                    
 
             # Stream results
             im0 = annotator.result()
